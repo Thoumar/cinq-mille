@@ -76,8 +76,13 @@ export type PlayerState = {
   opened: boolean
   removed: boolean
   turnsPlayed: number
-  /** Total après chacun de ses tours — alimente la courbe de progression. */
-  history: number[]
+  /**
+   * Total de ce joueur après **chaque tour de la partie**, pas seulement les siens.
+   * Cette frise commune est ce qui permet à la courbe de montrer un recul à l'instant
+   * exact où il se produit : indexée sur les tours du joueur, elle ne l'aurait affiché
+   * qu'à son tour suivant, alors qu'il subit le coup sans rien faire.
+   */
+  curve: number[]
   /**
    * Suite des totaux réellement occupés, sans les répétitions. C'est elle qui définit
    * le « score précédent » auquel on retombe quand on se fait dégommer : un tour raté
@@ -135,7 +140,7 @@ function blankState(player: Player): PlayerState {
     opened: false,
     removed: false,
     turnsPlayed: 0,
-    history: [],
+    curve: [0],
     trail: [0],
   }
 }
@@ -174,6 +179,8 @@ export function view(game: Game): GameView {
   const records: TurnRecord[] = []
   let current: string | null = game.firstPlayerId
   let winnerId: string | null = null
+  /** Position sur la frise commune : un cran par tour joué, tous joueurs confondus. */
+  let step = 0
 
   /** Joueur actif suivant, en tournant dans l'ordre de jeu. */
   const nextFrom = (from: string): string | null => {
@@ -199,7 +206,6 @@ export function view(game: Game): GameView {
         state.total = outcome.total
         state.opened = outcome.opened
         state.turnsPlayed += 1
-        state.history.push(outcome.total)
         // Un tour qui ne déplace pas le compteur ne laisse pas de trace : sinon
         // reculer d'un cran ramènerait exactement au même score.
         if (moved) state.trail.push(outcome.total)
@@ -218,6 +224,12 @@ export function view(game: Game): GameView {
           at: event.at,
           knocked,
         })
+
+        // Un cran de frise après chaque tour, une fois les reculs appliqués : la
+        // courbe de la victime décroche donc au tour qui l'a fait reculer.
+        step += 1
+        for (const other of byId.values()) other.curve.push(other.total)
+
         if (outcome.kind === 'win') {
           winnerId = event.playerId
           current = event.playerId
@@ -239,7 +251,10 @@ export function view(game: Game): GameView {
       case 'join':
         if (!byId.has(event.player.id)) {
           order.push(event.player)
-          byId.set(event.player.id, blankState(event.player))
+          const joined = blankState(event.player)
+          // Aligner l'arrivant sur la frise : il était à zéro avant d'entrer.
+          joined.curve = new Array(step + 1).fill(0)
+          byId.set(event.player.id, joined)
         }
         break
     }
@@ -401,9 +416,12 @@ export function stats(game: Game): GameStats {
   }
 }
 
-/** Progression cumulée par joueur, pour la courbe. */
+/**
+ * Progression par joueur sur la frise commune : un point par tour de la partie.
+ * Toutes les séries ont donc la même longueur et se lisent au même instant.
+ */
 export function progression(game: Game): { player: Player; totals: number[] }[] {
-  return view(game).states.map((s) => ({ player: s.player, totals: [0, ...s.history] }))
+  return view(game).states.map((s) => ({ player: s.player, totals: s.curve }))
 }
 
 export function createGame(params: {

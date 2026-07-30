@@ -416,6 +416,32 @@ describe('carnet et statistiques', () => {
     expect(progression(g)[0].totals).toEqual([0, 550, 850])
   })
 
+  it('toutes les séries partagent la même frise, un point par tour de la partie', () => {
+    const g = play(newGame([alice, bob]), 550, 500, 250)
+    const series = progression(g)
+    expect(series.map((s) => s.totals.length)).toEqual([4, 4])
+    expect(series[0].totals).toEqual([0, 550, 550, 800])
+    expect(series[1].totals).toEqual([0, 0, 500, 500])
+  })
+
+  it('un recul se voit sur la courbe au tour qui l’a provoqué', () => {
+    // alice monte à 800, bob l'y rejoint au 4ᵉ tour et la renvoie à 550.
+    const g = play(newGame([alice, bob]), 550, 500, 250, 300)
+    const [aliceSeries, bobSeries] = progression(g)
+    expect(aliceSeries.totals).toEqual([0, 550, 550, 800, 550])
+    expect(bobSeries.totals).toEqual([0, 0, 500, 500, 800])
+  })
+
+  it('un joueur arrivé en cours de partie est aligné sur la frise', () => {
+    let g = play(newGame([alice, bob]), 550, 500)
+    g = addPlayer(g, carol)
+    g = playTurn(g, 250, 3)
+    // Trois tours joués : un point de départ plus trois crans, pour tout le monde.
+    const series = progression(g)
+    expect(series.map((s) => s.totals.length)).toEqual([4, 4, 4])
+    expect(series[2].totals).toEqual([0, 0, 0, 0])
+  })
+
   it('les statistiques relèvent le meilleur tour et les tours ratés', () => {
     const g = play(newGame([alice, bob]), 1200, 500, 0, 600)
     const s = stats(g)

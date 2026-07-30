@@ -93,7 +93,33 @@ ouvert). Cas rare mais possible puisque la saisie est libre.
 Dès qu'un joueur atteint 5 000 pile, la partie **s'arrête immédiatement**. Pas de tour de
 dernière chance. L'écran de victoire s'affiche, la saisie est bloquée.
 
-### 3.5 Validation de la saisie
+### 3.5 Score déjà pris — le recul
+
+**Tomber pile sur le total d'un adversaire le renvoie à son score précédent.**
+
+Exemple : je suis à 800, tu marques et t'arrêtes à 800 → je retombe à 500, mon total
+d'avant.
+
+Deux garde-fous que la règle n'énonce pas mais sans lesquels elle est injouable :
+
+- **Le zéro ne déclenche rien.** Tout le monde y commence : sans cette exclusion, le
+  premier tour raté ferait reculer la table entière. Un joueur non ouvert n'est ni
+  tireur ni cible.
+- **Pas de réaction en chaîne.** Si mon recul me pose sur le score d'un troisième
+  joueur, il ne bouge pas. Seul le joueur qui vient de jouer fait reculer les autres.
+
+Le « score précédent » est lu dans une **trace des totaux réellement occupés, sans
+répétition** : un tour raté n'y ajoute rien. Sinon, être à 800, rater son tour, puis se
+faire dégommer ramènerait à 800 — c'est-à-dire nulle part.
+
+Plusieurs joueurs peuvent occuper le même total (uniquement par l'effet d'un recul) :
+ils reculent alors tous ensemble.
+
+L'évènement est **mis en scène à l'écran** : le chiffre de la victime dégringole
+réellement de l'ancien score au nouveau. C'est le seul évènement du jeu qui frappe
+quelqu'un qui n'a rien fait — il doit être annoncé, pas seulement apparaître au carnet.
+
+### 3.6 Validation de la saisie
 
 Un score de tour est accepté si et seulement si c'est un **multiple de 50**. C'est le
 garde-fou minimal contre les fautes de frappe (`130` refusé, `150` accepté), sans chercher
@@ -107,16 +133,21 @@ Le tour à zéro se saisit par le bouton dédié **« Raté »**, pas au pavé.
 
 ### 4.1 Écran de création de partie
 
-- **Roster mémorisé** : les joueurs des parties précédentes sont conservés
-  (`localStorage`), affichés en grille de cartes avec leur emoji. On tape une carte pour
-  l'inclure dans la partie.
-- **Nouveau joueur** : un champ prénom + une rangée d'emojis à choisir. Le joueur est
-  ajouté au roster (donc réutilisable la prochaine fois).
-- Un appui long (ou un mode édition) permet de renommer ou supprimer un joueur du roster.
+L'écran s'organise autour d'**équipes** — des tablées nommées et mémorisées — parcourues
+en carrousel horizontal.
+
+- **Les joueurs restent un roster global partagé.** Une équipe ne stocke que des
+  identifiants : quelqu'un peut appartenir à « Maison » et « Chalet » sans être
+  dupliqué, et le renommer le renomme partout.
+- **L'ordre des membres est l'ordre de jeu**, figé au lancement de la partie.
+- **La dernière équipe jouée remonte en tête** : c'est presque toujours celle qu'on
+  rejoue à la soirée suivante.
+- **Créer, modifier, supprimer une équipe** se fait dans une feuille : nom, choix des
+  membres dans le roster (l'ordre des taps est l'ordre de passage), création d'un
+  nouveau joueur, suppression.
 - **Nombre de joueurs : sans limite** (minimum 2). Au-delà de 8, la mise en page reste
   fonctionnelle mais n'est pas optimisée : le classement défile verticalement, le carnet
   horizontalement.
-- **L'ordre de jeu est l'ordre de sélection**, figé pour toute la partie.
 
 ### 4.2 Tirage au sort du premier joueur
 
@@ -203,10 +234,14 @@ Accessible en tapant sur sa ligne dans le classement :
 
 - Emoji + nom du vainqueur, en grand.
 - « 5 000 pile · en 9 tours · 12 min ».
-- **Courbe de progression** : une ligne par joueur, x = numéro de tour, y = total cumulé,
-  graduée jusqu'à 5 000. Les rebonds y sont visibles comme des décrochements vers le bas —
-  c'est le moment le plus drôle d'une partie, autant le rendre lisible. SVG dessiné à la
-  main, sans bibliothèque de graphiques.
+- **Courbe de progression** : une ligne par joueur, graduée jusqu'à 5 000, en SVG dessiné
+  à la main sans bibliothèque de graphiques. L'axe des abscisses est une **frise commune
+  à toute la partie** — un point par tour joué, tous joueurs confondus — et non les tours
+  de chaque joueur. C'est ce qui permet de voir un recul à l'instant exact où il se
+  produit : indexée sur les tours du joueur, la courbe ne l'aurait montré qu'à son tour
+  suivant, alors qu'il subit le coup sans rien faire. Les rebonds et les reculs y
+  décrochent vers le bas — les moments les plus drôles d'une partie, autant les rendre
+  lisibles.
 - **Statistiques de fin** : meilleur tour (valeur + joueur + numéro de tour), moyenne par
   tour du vainqueur, nombre de tours ratés (et par qui), nombre de rebonds au-dessus de
   5 000.
@@ -465,6 +500,8 @@ Ce qui a été explicitement écarté pendant l'entretien, et pourquoi :
 | Multi-joueur         | Un seul téléphone, localStorage, hors-ligne                     |
 | Ouverture ratée      | Aucune pénalité, on reste à 0                                   |
 | Dépassement          | Rebond `5000 − surplus`, plancher à 0                           |
+| Score déjà pris      | Recul de l'adversaire à son score précédent, sans chaîne ni zéro |
+| Équipes              | Tablées nommées, roster de joueurs partagé, dernière jouée en tête |
 | Victoire             | 5 000 pile, arrêt immédiat                                      |
 | Validation           | Multiples de 50 uniquement                                      |
 | Joueurs              | Roster mémorisé + emoji, sans limite de nombre                  |
