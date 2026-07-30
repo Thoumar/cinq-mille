@@ -1,0 +1,49 @@
+/**
+ * Les deux seules icônes de l'application, dessinées à la main.
+ *
+ * Une bibliothèque d'icônes pour deux glyphes pèserait plus lourd que le reste de
+ * l'interface. `currentColor` partout pour qu'elles suivent la couleur du bouton.
+ */
+
+const base = {
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.9,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const
+
+export function ChartIcon({ className }: { className?: string }) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M3.5 20.5h17" strokeWidth={1.4} opacity={0.45} />
+      <path d="M4 16.5 9.5 10.5 13.5 14 20 6.5" />
+      <circle cx="20" cy="6.5" r="1.7" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function GearIcon({ className }: { className?: string }) {
+  // Corps, moyeu, et huit dents réparties tous les 45°.
+  const teeth = Array.from({ length: 8 }, (_, i) => {
+    const angle = (i * Math.PI) / 4
+    const [cos, sin] = [Math.cos(angle), Math.sin(angle)]
+    return {
+      x1: 12 + 5.4 * cos,
+      y1: 12 + 5.4 * sin,
+      x2: 12 + 7.9 * cos,
+      y2: 12 + 7.9 * sin,
+    }
+  })
+
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="4.9" />
+      <circle cx="12" cy="12" r="1.9" />
+      {teeth.map((t, i) => (
+        <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
+      ))}
+    </svg>
+  )
+}

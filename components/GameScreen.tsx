@@ -8,6 +8,7 @@ import { fmt } from '@/lib/format'
 import { GOAL } from '@/lib/rules'
 import { useStore } from '@/lib/store'
 
+import { ChartIcon, GearIcon } from './icons'
 import { NumPad } from './NumPad'
 import { ProgressChart } from './ProgressChart'
 import { Scoreboard } from './Scoreboard'
@@ -51,21 +52,28 @@ export function GameScreen() {
 
   return (
     <main className="flex flex-1 flex-col px-4 pt-safe pb-safe">
-      <header className="flex items-center justify-between py-4">
-        <p className="text-[10.5px] font-bold tracking-[0.16em] text-cream-faint uppercase">
-          objectif <span className="num text-[15px] tracking-normal text-brass">{fmt(GOAL)}</span>
-        </p>
-        <p className="num text-[12.5px] font-bold text-cream-dim">
+      <header className="flex items-center justify-between py-3">
+        <p className="num text-[13px] font-bold tracking-wide text-cream-dim">
           Tour {gameView.currentRound}
         </p>
-        <button
-          type="button"
-          onClick={() => setMenu(true)}
-          aria-label="Menu de la partie"
-          className="-mr-2 flex size-11 items-center justify-center text-xl text-cream-dim"
-        >
-          ⋮
-        </button>
+        <div className="-mr-2 flex items-center">
+          <button
+            type="button"
+            onClick={() => setChart(true)}
+            aria-label="Voir la progression"
+            className="flex size-11 items-center justify-center text-cream-dim active:text-brass"
+          >
+            <ChartIcon className="size-6" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMenu(true)}
+            aria-label="Réglages et actions de la partie"
+            className="flex size-11 items-center justify-center text-cream-dim active:text-brass"
+          >
+            <GearIcon className="size-6" />
+          </button>
+        </div>
       </header>
 
       {store.writeError && (
@@ -231,7 +239,7 @@ export function GameScreen() {
         label="Menu de la partie"
         height="tall"
       >
-        <h2 className="font-display mb-4 text-2xl">Partie en cours</h2>
+        <h2 className="font-display mb-4 text-2xl">Réglages</h2>
 
         {store.undoLabel && (
           <MenuRow
@@ -242,13 +250,6 @@ export function GameScreen() {
             }}
           />
         )}
-        <MenuRow
-          label="📈 Voir la progression"
-          onClick={() => {
-            setMenu(false)
-            setChart(true)
-          }}
-        />
         <MenuRow
           label="＋ Ajouter un joueur"
           hint="Il entre à 0, compteur non ouvert."
