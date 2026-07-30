@@ -35,6 +35,26 @@ create table if not exists players (
 
 create index if not exists players_owner_idx on players (owner_id, created_at);
 
+-- Les équipes : des tablées nommées. Les joueurs restent partagés, une équipe ne
+-- référence que leurs identifiants, et **l'ordre du tableau est l'ordre de jeu**.
+-- D'où un `uuid[]` plutôt qu'une table de jonction, qui perdrait cet ordre sans
+-- une colonne de position supplémentaire.
+--   listTeams  → select … from teams where owner_id = $1
+--   upsertTeam → insert … on conflict (id) do update set …
+--   deleteTeam → delete from teams where id = $1 and owner_id = $2
+create table if not exists teams (
+  id              uuid primary key,
+  owner_id        uuid not null references owners (id) on delete cascade,
+  name            text not null check (length(trim(name)) between 1 and 40),
+  player_ids      uuid[] not null default '{}',
+  created_at      timestamptz not null default now(),
+  -- Sert au tri de l'écran d'accueil : la dernière tablée jouée passe en tête.
+  last_played_at  timestamptz
+);
+
+create index if not exists teams_owner_recent_idx
+  on teams (owner_id, last_played_at desc nulls last, created_at desc);
+
 -- Les parties. `finished_at is null` identifie la partie en cours.
 --   loadGame   → select … from games where owner_id = $1 and finished_at is null limit 1
 --   saveGame   → insert … on conflict (id) do update set events = $2, revision = games.revision + 1

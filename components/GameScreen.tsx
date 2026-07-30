@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { playerColor } from '@/lib/colors'
-import { progression } from '@/lib/engine'
+import { type Knock, progression } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { useStore } from '@/lib/store'
 
 import { ChartIcon, GearIcon } from './icons'
+import { KnockOverlay } from './KnockOverlay'
 import { NumPad } from './NumPad'
 import { ProgressChart } from './ProgressChart'
 import { Scoreboard } from './Scoreboard'
@@ -25,6 +26,7 @@ export function GameScreen() {
   const [picked, setPicked] = useState<string | null>(null)
   const [toast, setToast] = useState(false)
   const [confirmAbandon, setConfirmAbandon] = useState(false)
+  const [knock, setKnock] = useState<{ shooterId: string; knocked: Knock[] } | null>(null)
 
   // Le bandeau d'annulation reste ~5 s après une validation (SPEC.md §4.5).
   useEffect(() => {
@@ -42,9 +44,12 @@ export function GameScreen() {
   )
 
   const submit = (raw: number) => {
-    store.submitScore(raw)
+    const knocked = store.submitScore(raw)
     setEntry(false)
     setToast(true)
+    // Le joueur qui vient de jouer est celui d'avant la validation : au moment où
+    // la scène s'affiche, la vue aura déjà avancé au suivant.
+    if (knocked.length && current) setKnock({ shooterId: current.player.id, knocked })
   }
 
   return (
@@ -154,6 +159,21 @@ export function GameScreen() {
           />
         )}
       </Sheet>
+
+      {/* ------------------------------------------------- score déjà pris */}
+      {knock &&
+        (() => {
+          const shooter = gameView.states.find((s) => s.player.id === knock.shooterId)
+          if (!shooter) return null
+          return (
+            <KnockOverlay
+              shooter={shooter}
+              knocked={knock.knocked}
+              victims={gameView.states}
+              onDismiss={() => setKnock(null)}
+            />
+          )
+        })()}
 
       {/* ------------------------------------------------------ progression */}
       <Sheet open={chart} onClose={() => setChart(false)} label="Progression">

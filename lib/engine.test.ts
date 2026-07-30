@@ -251,6 +251,102 @@ describe('rotation des joueurs', () => {
   })
 })
 
+// ---------------------------------------------------------------- collisions
+
+describe('tomber sur le score d’un adversaire', () => {
+  it('renvoie l’adversaire à son score précédent', () => {
+    // alice 550 puis 800 ; bob 500 puis tombe pile sur 800.
+    const g = play(newGame([alice, bob]), 550, 500, 250, 300)
+    expect(totalOf(g, 'bob')).toBe(800)
+    expect(totalOf(g, 'alice')).toBe(550)
+  })
+
+  it('consigne le recul dans le tour qui l’a provoqué', () => {
+    const g = play(newGame([alice, bob]), 550, 500, 250, 300)
+    expect(view(g).records.at(-1)?.knocked).toEqual([
+      { playerId: 'alice', from: 800, to: 550 },
+    ])
+  })
+
+  it('un tour raté ne crée pas de palier, donc le recul saute par-dessus', () => {
+    // alice : 550 → 800, puis un tour à zéro. Elle doit revenir à 550, pas à 800.
+    let g = play(newGame([alice, bob]), 550, 500, 250, 0)
+    g = playTurn(g, 0, 5) // alice rate
+    g = playTurn(g, 300, 6) // bob atteint 800
+    expect(totalOf(g, 'alice')).toBe(550)
+  })
+
+  it('le zéro ne déclenche rien : tout le monde y commence', () => {
+    const g = play(newGame([alice, bob]), 0, 0)
+    expect(view(g).records.at(-1)?.knocked).toEqual([])
+    expect(totalOf(g, 'alice')).toBe(0)
+  })
+
+  it('un joueur non ouvert n’est pas une cible', () => {
+    // alice tente 400 : elle reste à 0 sans être ouverte. bob ouvre à 500.
+    const g = play(newGame([alice, bob]), 400, 500)
+    expect(view(g).records.at(-1)?.knocked).toEqual([])
+    expect(totalOf(g, 'bob')).toBe(500)
+  })
+
+  it('le tour victorieux ne fait reculer personne', () => {
+    // 5000 ne peut jamais être occupé — y arriver termine la partie — mais la
+    // garde reste, sinon un futur assouplissement de la victoire ferait reculer
+    // quelqu'un sur le fil.
+    const g = play(newGame([alice, bob]), 4900, 500, 100)
+    const v = view(g)
+    expect(v.winnerId).toBe('alice')
+    expect(v.records.at(-1)?.knocked).toEqual([])
+    expect(totalOf(g, 'bob')).toBe(500)
+  })
+
+  it('un rebond qui retombe sur un score occupé fait reculer aussi', () => {
+    // bob s'installe à 4800 ; alice à 4900 marque 300 et rebondit pile sur 4800.
+    let g = play(newGame([alice, bob]), 4900, 4800)
+    g = playTurn(g, 300, 5)
+    expect(totalOf(g, 'alice')).toBe(4800)
+    expect(totalOf(g, 'bob')).toBe(0)
+  })
+
+  it('annuler le tour ramène la victime à son score', () => {
+    const g = play(newGame([alice, bob]), 550, 500, 250, 300)
+    expect(totalOf(undo(g), 'alice')).toBe(800)
+  })
+
+  it('fait reculer tous les joueurs posés sur le même score, sans réaction en chaîne', () => {
+    const dave = player('dave', 3)
+    const eve = player('eve', 4)
+    let g = newGame([alice, bob, carol, dave, eve])
+    const turns = [
+      550, // alice ouvre à 550
+      500, // bob ouvre à 500
+      400, // carol sous le seuil : reste à 0
+      600, // dave ouvre à 600
+      400, // eve sous le seuil : reste à 0
+      250, // alice → 800, elle libère 550
+      0, // bob rate
+      550, // carol prend le 550 laissé vacant
+      200, // dave → 800 : alice recule sur 550… déjà occupé par carol
+    ]
+    turns.forEach((raw, i) => {
+      g = playTurn(g, raw, i + 1)
+    })
+
+    // Le recul d'alice ne dégomme pas carol : seul le joueur qui vient de jouer
+    // fait reculer les autres.
+    expect(totalOf(g, 'alice')).toBe(550)
+    expect(totalOf(g, 'carol')).toBe(550)
+
+    // eve ouvre pile sur 550 : les deux reculent d'un coup.
+    g = playTurn(g, 550, 10)
+    const knocked = view(g).records.at(-1)?.knocked ?? []
+    expect(knocked.map((k) => k.playerId).sort()).toEqual(['alice', 'carol'])
+    expect(totalOf(g, 'alice')).toBe(0)
+    expect(totalOf(g, 'carol')).toBe(0)
+    expect(totalOf(g, 'eve')).toBe(550)
+  })
+})
+
 // ---------------------------------------------------------------- annulation
 
 describe('annulation', () => {

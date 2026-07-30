@@ -7,12 +7,14 @@
  */
 
 import type { Game, Player } from '../engine'
-import { decode, encode, parseGame, parsePlayers, parseSettings } from './codec'
+import type { Team } from '../teams'
+import { decode, encode, parseGame, parsePlayers, parseSettings, parseTeams } from './codec'
 import { DEFAULT_SETTINGS, type Repository, type Settings } from './types'
 
 const PREFIX = 'cinq-mille'
 const KEYS = {
   roster: `${PREFIX}:roster`,
+  teams: `${PREFIX}:teams`,
   game: `${PREFIX}:game`,
   settings: `${PREFIX}:settings`,
 } as const
@@ -49,6 +51,7 @@ export function createLocalRepository(storage: Storage): Repository {
   }
 
   const readRoster = (): Player[] => read(KEYS.roster, parsePlayers) ?? []
+  const readTeams = (): Team[] => read(KEYS.teams, parseTeams) ?? []
 
   return {
     kind: 'local',
@@ -69,6 +72,25 @@ export function createLocalRepository(storage: Storage): Repository {
       write(
         KEYS.roster,
         readRoster().filter((p) => p.id !== id),
+      )
+    },
+
+    async listTeams() {
+      return readTeams()
+    },
+
+    async upsertTeam(team) {
+      const teams = readTeams()
+      const index = teams.findIndex((t) => t.id === team.id)
+      if (index >= 0) teams[index] = team
+      else teams.push(team)
+      write(KEYS.teams, teams)
+    },
+
+    async deleteTeam(id) {
+      write(
+        KEYS.teams,
+        readTeams().filter((t) => t.id !== id),
       )
     },
 

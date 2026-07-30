@@ -8,6 +8,7 @@
  */
 
 import type { Game, GameEvent, Player } from '../engine'
+import type { Team } from '../teams'
 import { DEFAULT_SETTINGS, SCHEMA_VERSION, type Settings } from './types'
 
 type Envelope = { v: number; data: unknown }
@@ -72,6 +73,33 @@ export function parsePlayers(value: unknown): Player[] | null {
     if (player) players.push(player)
   }
   return players
+}
+
+export function parseTeam(value: unknown): Team | null {
+  if (!isRecord(value)) return null
+  const { id, name, playerIds, createdAt, lastPlayedAt } = value
+  if (!isNonEmptyString(id) || !isNonEmptyString(name)) return null
+  if (!Array.isArray(playerIds) || !playerIds.every(isNonEmptyString)) return null
+  if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) return null
+  return {
+    id,
+    name,
+    playerIds,
+    createdAt,
+    lastPlayedAt:
+      typeof lastPlayedAt === 'number' && Number.isFinite(lastPlayedAt) ? lastPlayedAt : null,
+  }
+}
+
+export function parseTeams(value: unknown): Team[] | null {
+  if (!Array.isArray(value)) return null
+  const teams: Team[] = []
+  for (const item of value) {
+    const team = parseTeam(item)
+    // Une équipe illisible est écartée, les autres sont conservées.
+    if (team) teams.push(team)
+  }
+  return teams
 }
 
 function parseEvent(value: unknown): GameEvent | null {

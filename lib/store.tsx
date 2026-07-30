@@ -30,6 +30,7 @@ import {
   drawFirstPlayer,
   type Game,
   type GameView,
+  type Knock,
   lastEventLabel,
   type Player,
   playTurn,
@@ -42,10 +43,13 @@ import { type Cue, feedback, keepScreenAwake } from './feedback'
 import { newId } from './id'
 import { getRepository } from './storage'
 import { DEFAULT_SETTINGS, type Settings } from './storage/types'
+import { sortTeams, type Team } from './teams'
 
 type Store = {
   ready: boolean
   roster: Player[]
+  /** Déjà triées : la dernière tablée jouée en tête. */
+  teams: Team[]
   game: Game | null
   gameView: GameView | null
   settings: Settings
@@ -59,9 +63,14 @@ type Store = {
   renameRosterPlayer: (player: Player) => void
   deleteRosterPlayer: (id: string) => void
 
-  startGame: (players: Player[]) => void
+  createTeam: (name: string, playerIds: string[]) => Team
+  updateTeam: (team: Team) => void
+  removeTeam: (id: string) => void
+
+  startGame: (players: Player[], teamId?: string) => void
   finishDrawing: () => void
-  submitScore: (raw: number) => void
+  /** Renvoie les joueurs que ce tour a fait reculer, pour la mise en scène. */
+  submitScore: (raw: number) => Knock[]
   skipCurrent: () => void
   removeFromGame: (playerId: string) => void
   addToGame: (player: Player) => void
@@ -86,6 +95,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const [ready, setReady] = useState(false)
   const [roster, setRoster] = useState<Player[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
   const [game, setGame] = useState<Game | null>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [writeError, setWriteError] = useState<string | null>(null)
@@ -104,13 +114,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [players, current, preferences] = await Promise.all([
+      const [players, savedTeams, current, preferences] = await Promise.all([
         repository.listPlayers(),
+        repository.listTeams(),
         repository.loadGame(),
         repository.loadSettings(),
       ])
       if (cancelled) return
       setRoster(players)
+      setTeams(savedTeams)
       setGame(current)
       setSettings(preferences)
       setReady(true)
@@ -175,8 +187,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [enqueue, repository],
   )
 
+  const createTeam = useCallback(
+    (name: string, playerIds: string[]): Team => {
+      const team: Team = {
+        id: newId(),
+        name: name.trim(),
+        playerIds,
+        createdAt: Date.now(),
+        lastPlayedAt: null,
+      }
+      setTeams((current) => [...current, team])
+      enqueue(() => repository.upsertTeam(team))
+      return team
+    },
+    [enqueue, repository],
+  )
+
+  const updateTeam = useCallback(
+    (team: Team) => {
+      setTeams((current) => current.map((t) => (t.id === team.id ? team : t)))
+      enqueue(() => repository.upsertTeam(team))
+    },
+    [enqueue, repository],
+  )
+
+  const removeTeam = useCallback(
+    (id: string) => {
+      setTeams((current) => current.filter((t) => t.id !== id))
+      enqueue(() => repository.deleteTeam(id))
+    },
+    [enqueue, repository],
+  )
+
   const startGame = useCallback(
-    (players: Player[]) => {
+    (players: Player[], teamId?: string) => {
       const fresh = createGame({
         id: newId(),
         players,
@@ -186,39 +230,60 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setGame(fresh)
       setDrawing(true)
       enqueue(() => repository.saveGame(fresh))
+
+      // Horodater l'équipe la fait remonter en tête de l'accueil : c'est presque
+      // toujours celle qu'on rejoue à la partie suivante.
+      if (!teamId) return
+      setTeams((current) =>
+        current.map((team) =>
+          team.id === teamId ? { ...team, lastPlayedAt: Date.now() } : team,
+        ),
+      )
+      const played = teams.find((team) => team.id === teamId)
+      if (played) {
+        const stamped = { ...played, lastPlayedAt: Date.now() }
+        enqueue(() => repository.upsertTeam(stamped))
+      }
     },
-    [enqueue, repository],
+    [enqueue, repository, teams],
   )
 
   const finishDrawing = useCallback(() => setDrawing(false), [])
 
+  /**
+   * Enregistre un tour et **renvoie les joueurs qu'il a fait reculer**, pour que
+   * l'appelant puisse le mettre en scène. On part de `game` plutôt que de la forme
+   * fonctionnelle de `setGame` : il n'y a qu'un seul écrivain, et il faut pouvoir
+   * rendre le résultat immédiatement.
+   */
   const submitScore = useCallback(
-    (raw: number) => {
-      setGame((current) => {
-        if (!current) return current
-        let next: Game
-        try {
-          next = playTurn(current, raw, Date.now())
-        } catch {
-          // Saisie invalide : l'interface l'empêche déjà, on ne casse rien ici.
-          return current
-        }
-        const after = buildView(next)
-        const record = after.records.at(-1)
-        cue(
-          after.finished
-            ? 'win'
+    (raw: number): Knock[] => {
+      if (!game) return []
+      let next: Game
+      try {
+        next = playTurn(game, raw, Date.now())
+      } catch {
+        // Saisie invalide : l'interface l'empêche déjà, on ne casse rien ici.
+        return []
+      }
+      const after = buildView(next)
+      const record = after.records.at(-1)
+      cue(
+        after.finished
+          ? 'win'
+          : record?.knocked.length
+            ? 'bounce'
             : record?.kind === 'bounce'
               ? 'bounce'
               : record?.kind === 'miss' || record?.kind === 'no-open'
                 ? 'miss'
                 : 'validate',
-        )
-        enqueue(() => repository.saveGame(next))
-        return next
-      })
+      )
+      setGame(next)
+      enqueue(() => repository.saveGame(next))
+      return record?.knocked ?? []
     },
-    [cue, enqueue, repository],
+    [cue, enqueue, game, repository],
   )
 
   const skipCurrent = useCallback(() => mutateGame(skipTurn), [mutateGame])
@@ -265,10 +330,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [enqueue, repository],
   )
 
+  const orderedTeams = useMemo(() => sortTeams(teams), [teams])
+
   const value = useMemo<Store>(
     () => ({
       ready,
       roster,
+      teams: orderedTeams,
       game,
       gameView,
       settings,
@@ -278,6 +346,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createRosterPlayer,
       renameRosterPlayer,
       deleteRosterPlayer,
+      createTeam,
+      updateTeam,
+      removeTeam,
       startGame,
       finishDrawing,
       submitScore,
@@ -293,6 +364,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [
       ready,
       roster,
+      orderedTeams,
       game,
       gameView,
       settings,
@@ -301,6 +373,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createRosterPlayer,
       renameRosterPlayer,
       deleteRosterPlayer,
+      createTeam,
+      updateTeam,
+      removeTeam,
       startGame,
       finishDrawing,
       submitScore,

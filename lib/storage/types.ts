@@ -1,4 +1,5 @@
 import type { Game, Player } from '../engine'
+import type { Team } from '../teams'
 
 export type Settings = {
   sound: boolean
@@ -52,6 +53,11 @@ export interface Repository {
   listPlayers(): Promise<Player[]>
   upsertPlayer(player: Player): Promise<void>
   deletePlayer(id: string): Promise<void>
+
+  // — Équipes : des tablées nommées, qui référencent le roster —
+  listTeams(): Promise<Team[]>
+  upsertTeam(team: Team): Promise<void>
+  deleteTeam(id: string): Promise<void>
 
   // — La partie en cours (une seule à la fois, cf. SPEC.md §5) —
   loadGame(): Promise<Game | null>

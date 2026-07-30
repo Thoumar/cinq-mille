@@ -54,6 +54,9 @@ export type TurnOutcome = {
   kind: TurnKind
 }
 
+/** Un joueur renvoyé à son score précédent parce qu'un autre est tombé sur le sien. */
+export type Knock = { playerId: string; from: number; to: number }
+
 export type TurnRecord = {
   playerId: string
   /** Le n-ième tour de ce joueur (0-based) — numéro de ligne dans le carnet. */
@@ -63,6 +66,8 @@ export type TurnRecord = {
   totalAfter: number
   kind: TurnKind
   at: number
+  /** Les joueurs que ce tour a fait reculer. Vide dans l'immense majorité des cas. */
+  knocked: Knock[]
 }
 
 export type PlayerState = {
@@ -73,6 +78,12 @@ export type PlayerState = {
   turnsPlayed: number
   /** Total après chacun de ses tours — alimente la courbe de progression. */
   history: number[]
+  /**
+   * Suite des totaux réellement occupés, sans les répétitions. C'est elle qui définit
+   * le « score précédent » auquel on retombe quand on se fait dégommer : un tour raté
+   * n'y ajoute rien, sinon reculer ramènerait au même score.
+   */
+  trail: number[]
 }
 
 export type GameView = {
@@ -118,7 +129,40 @@ export function resolveTurn(total: number, opened: boolean, raw: number): TurnOu
 }
 
 function blankState(player: Player): PlayerState {
-  return { player, total: 0, opened: false, removed: false, turnsPlayed: 0, history: [] }
+  return {
+    player,
+    total: 0,
+    opened: false,
+    removed: false,
+    turnsPlayed: 0,
+    history: [],
+    trail: [0],
+  }
+}
+
+/**
+ * Tomber pile sur le score d'un adversaire le renvoie à son score précédent.
+ *
+ * Deux garde-fous non négociables : le zéro ne déclenche rien — tout le monde y
+ * commence, la table entière reculerait au premier tour raté — et un joueur non
+ * ouvert n'est ni tireur ni cible. Pas de réaction en chaîne non plus : seul le
+ * joueur qui vient de jouer fait reculer, celui qui recule ne dégomme personne.
+ */
+function collide(shooter: PlayerState, everyone: PlayerState[]): Knock[] {
+  if (!shooter.opened || shooter.total <= 0) return []
+
+  const knocked: Knock[] = []
+  for (const victim of everyone) {
+    if (victim === shooter || victim.removed || !victim.opened) continue
+    if (victim.total !== shooter.total) continue
+
+    const from = victim.total
+    victim.trail.pop()
+    const to = victim.trail.at(-1) ?? 0
+    victim.total = to
+    knocked.push({ playerId: victim.player.id, from, to })
+  }
+  return knocked
 }
 
 /** Rejoue le journal et renvoie tout ce dont l'interface a besoin. */
@@ -151,10 +195,19 @@ export function view(game: Game): GameView {
         const state = byId.get(event.playerId)
         if (!state) break
         const outcome = resolveTurn(state.total, state.opened, event.raw)
+        const moved = outcome.total !== state.total
         state.total = outcome.total
         state.opened = outcome.opened
         state.turnsPlayed += 1
         state.history.push(outcome.total)
+        // Un tour qui ne déplace pas le compteur ne laisse pas de trace : sinon
+        // reculer d'un cran ramènerait exactement au même score.
+        if (moved) state.trail.push(outcome.total)
+
+        // La victoire clôt la partie : personne ne recule sur le fil.
+        const knocked =
+          outcome.kind === 'win' ? [] : collide(state, [...byId.values()])
+
         records.push({
           playerId: event.playerId,
           row: state.turnsPlayed - 1,
@@ -163,6 +216,7 @@ export function view(game: Game): GameView {
           totalAfter: outcome.total,
           kind: outcome.kind,
           at: event.at,
+          knocked,
         })
         if (outcome.kind === 'win') {
           winnerId = event.playerId

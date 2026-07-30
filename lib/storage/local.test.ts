@@ -63,6 +63,48 @@ describe('roster', () => {
   })
 })
 
+describe('équipes', () => {
+  const maison = {
+    id: 't1',
+    name: 'Maison',
+    playerIds: ['a', 'b'],
+    createdAt: 10,
+    lastPlayedAt: null,
+  }
+
+  it('ajoute, met à jour et supprime une équipe', async () => {
+    await repo.upsertTeam(maison)
+    expect(await repo.listTeams()).toEqual([maison])
+
+    await repo.upsertTeam({ ...maison, name: 'Chalet', lastPlayedAt: 42 })
+    const teams = await repo.listTeams()
+    expect(teams).toHaveLength(1)
+    expect(teams[0]).toMatchObject({ name: 'Chalet', lastPlayedAt: 42 })
+
+    await repo.deleteTeam('t1')
+    expect(await repo.listTeams()).toEqual([])
+  })
+
+  it('conserve l’ordre des joueurs, qui est l’ordre de jeu', async () => {
+    await repo.upsertTeam({ ...maison, playerIds: ['b', 'a', 'c'] })
+    expect((await repo.listTeams())[0].playerIds).toEqual(['b', 'a', 'c'])
+  })
+
+  it('renvoie une liste vide quand rien n’est stocké', async () => {
+    expect(await repo.listTeams()).toEqual([])
+  })
+
+  it('écarte les équipes illisibles sans perdre les autres', async () => {
+    storage.setItem('cinq-mille:teams', encode([maison, { id: 'x' }, { ...maison, id: 't2' }]))
+    expect((await repo.listTeams()).map((t) => t.id)).toEqual(['t1', 't2'])
+  })
+
+  it('ramène un horodatage absent ou aberrant à null', async () => {
+    storage.setItem('cinq-mille:teams', encode([{ ...maison, lastPlayedAt: 'hier' }]))
+    expect((await repo.listTeams())[0].lastPlayedAt).toBeNull()
+  })
+})
+
 describe('réglages', () => {
   it('renvoie les valeurs par défaut si rien n’est stocké', async () => {
     expect(await repo.loadSettings()).toEqual(DEFAULT_SETTINGS)

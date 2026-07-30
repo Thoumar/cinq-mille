@@ -6,40 +6,29 @@ import { EMOJI_CHOICES, playerColor } from '@/lib/colors'
 import type { Player } from '@/lib/engine'
 import { plural } from '@/lib/format'
 import { useStore } from '@/lib/store'
+import { type Team, teamPlayers } from '@/lib/teams'
 
 import { Die } from './icons'
 import { Sheet } from './Sheet'
 
+type Editing = { mode: 'new' } | { mode: 'edit'; team: Team } | null
+
 export function SetupScreen() {
-  const { roster, createRosterPlayer, deleteRosterPlayer, startGame, cue } = useStore()
-  const [selected, setSelected] = useState<string[]>([])
-  const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const store = useStore()
+  const { roster, teams, startGame, cue } = store
 
-  // L'ordre de sélection **est** l'ordre de jeu (SPEC.md §4.1) : on garde donc la
-  // liste des identifiants dans l'ordre des taps, pas un simple ensemble.
-  const toggle = (id: string) => {
-    cue('tap')
-    setSelected((current) =>
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
-    )
-  }
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Editing>(null)
 
-  const players = selected
-    .map((id) => roster.find((p) => p.id === id))
-    .filter((p): p is Player => Boolean(p))
+  // Les équipes arrivent déjà triées, la dernière jouée en tête : sans choix
+  // explicite, c'est donc elle qui est proposée.
+  const current = teams.find((team) => team.id === selectedId) ?? teams[0] ?? null
+  const players = current ? teamPlayers(current, roster) : []
   const canStart = players.length >= 2
 
-  // Au-delà de six habitués, trois colonnes gardent la grille dans l'écran plutôt
-  // que de la faire défiler.
-  const dense = roster.length > 6
-
   return (
-    /* Trois bandes : identité et lancement sont fixes, seul le roster est élastique.
-       La page ne peut donc pas dépasser une hauteur d'écran, et le défilement
-       n'apparaît que si la tablée est réellement trop longue pour tenir. */
-    <main className="flex flex-1 flex-col overflow-hidden px-5 pt-safe pb-safe">
-      <header className="shrink-0 pt-5 pb-6 text-center">
+    <main className="flex flex-1 flex-col overflow-hidden pt-safe pb-safe">
+      <header className="shrink-0 px-5 pt-5 pb-7 text-center">
         <div className="flex items-end justify-center gap-1.5">
           {/* Un 1 et un 5 : les deux seules faces qui marquent isolément au 5000. */}
           <Die face={1} className="size-11 -rotate-12 drop-shadow-[0_7px_12px_rgba(0,0,0,0.5)]" />
@@ -53,103 +42,116 @@ export function SetupScreen() {
         </h1>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex min-h-full flex-col justify-center">
-          <h2 className="mb-3 text-center text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
-            {roster.length === 0
-              ? 'Le roster est vide'
-              : editing
-                ? 'Tape un joueur pour le retirer'
-                : 'Qui joue ? Tape dans l’ordre de passage'}
-          </h2>
+      <div className="flex min-h-0 flex-1 flex-col justify-center">
+        <h2 className="mb-3 shrink-0 px-5 text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
+          {teams.length === 0 ? 'Aucune équipe' : 'Avec qui joues-tu ?'}
+        </h2>
 
-          {roster.length === 0 ? (
-            <p className="mx-auto max-w-70 rounded-2xl border border-dashed border-edge px-6 py-7 text-center text-[13.5px] leading-relaxed text-cream-dim">
-              Ajoute les joueurs une fois : ils seront là aux prochaines parties.
-            </p>
-          ) : (
-            <ul className={`grid gap-2.5 ${dense ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              {roster.map((player) => {
-                const rank = selected.indexOf(player.id)
-                const isSelected = rank >= 0 && !editing
-                return (
-                  <li key={player.id}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        editing ? deleteRosterPlayer(player.id) : toggle(player.id)
-                      }
-                      aria-pressed={editing ? undefined : rank >= 0}
-                      aria-label={
-                        editing ? `Retirer ${player.name} du roster` : player.name
-                      }
-                      className={`relative flex w-full flex-col items-center justify-center rounded-2xl border px-2 transition-colors duration-200 ${
-                        dense ? 'min-h-21 py-2.5' : 'min-h-25 py-3'
-                      } ${
-                        isSelected
-                          ? 'border-brass bg-brass/12'
-                          : editing
-                            ? 'border-brick/40 bg-brick/8'
-                            : 'border-edge bg-felt-800'
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`absolute top-2 right-2 flex size-5.5 items-center justify-center rounded-full text-[11px] font-black transition-opacity duration-200 ${
-                          isSelected || editing ? 'opacity-100' : 'opacity-0'
-                        } ${editing ? 'bg-brick text-felt-950' : 'text-felt-950'}`}
-                        style={
-                          isSelected
-                            ? { background: playerColor(player.colorIndex) }
-                            : undefined
-                        }
-                      >
-                        {editing ? '×' : rank + 1}
-                      </span>
-                      <span className={dense ? 'text-2xl leading-none' : 'text-3xl leading-none'}>
+        {/* Carrousel : les équipes se parcourent au pouce, à l'horizontale. Une liste
+            verticale mangerait toute la hauteur pour une information courte. */}
+        <div className="flex shrink-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-5 pb-2">
+          {teams.map((team, index) => {
+            const members = teamPlayers(team, roster)
+            const isCurrent = current?.id === team.id
+            return (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => {
+                  cue('tap')
+                  setSelectedId(team.id)
+                }}
+                aria-pressed={isCurrent}
+                className={`flex w-40 shrink-0 snap-start flex-col rounded-2xl border px-3.5 py-3 text-left transition-colors duration-200 ${
+                  isCurrent ? 'border-brass bg-brass/12' : 'border-edge bg-felt-800'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[15px] font-bold">{team.name}</span>
+                  {index === 0 && team.lastPlayedAt !== null && (
+                    <span className="shrink-0 text-[9px] font-black tracking-[0.1em] text-brass uppercase">
+                      dernière
+                    </span>
+                  )}
+                </span>
+                <span className="mt-2.5 flex h-7 items-center gap-0.5 overflow-hidden text-xl">
+                  {members.length === 0 ? (
+                    <span className="text-[12px] text-cream-faint">vide</span>
+                  ) : (
+                    members.slice(0, 5).map((player) => (
+                      <span key={player.id} className="leading-none">
                         {player.emoji}
                       </span>
-                      <span
-                        className={`mt-2 max-w-full truncate font-bold ${
-                          dense ? 'text-[12.5px]' : 'text-sm'
-                        }`}
-                      >
-                        {player.name}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+                    ))
+                  )}
+                  {members.length > 5 && (
+                    <span className="ml-1 text-[11px] text-cream-faint">
+                      +{members.length - 5}
+                    </span>
+                  )}
+                </span>
+                <span className="num mt-2 text-[11.5px] text-cream-faint">
+                  {members.length} {plural(members.length, 'joueur')}
+                </span>
+              </button>
+            )
+          })}
 
           <button
             type="button"
-            onClick={() => setAdding(true)}
-            className="mt-2.5 flex min-h-13 w-full items-center justify-center rounded-2xl border border-edge bg-felt-800 text-[15px] font-bold text-cream-dim"
+            onClick={() => setEditing({ mode: 'new' })}
+            className="flex w-40 shrink-0 snap-start flex-col items-center justify-center rounded-2xl border border-dashed border-edge px-3.5 py-3 text-center text-[13.5px] font-bold text-cream-dim"
           >
-            + Nouveau joueur
+            <span className="text-2xl leading-none">+</span>
+            <span className="mt-2">Nouvelle équipe</span>
           </button>
+        </div>
 
-          {roster.length > 0 && (
+        {current && (
+          <div className="min-h-0 shrink px-5 pt-3">
+            <ul className="flex flex-wrap justify-center gap-x-2 gap-y-1.5">
+              {players.map((player, index) => (
+                <li
+                  key={player.id}
+                  className="flex items-center gap-1.5 rounded-full border border-edge bg-felt-800 py-1 pr-3 pl-1.5"
+                >
+                  <span
+                    className="num flex size-5 items-center justify-center rounded-full text-[10px] font-black text-felt-950"
+                    style={{ background: playerColor(player.colorIndex) }}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="text-[13px] font-semibold">
+                    {player.emoji} {player.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => setEditing((v) => !v)}
-                className="mt-1 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
+                onClick={() => setEditing({ mode: 'edit', team: current })}
+                className="mt-2 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
               >
-                {editing ? 'Terminé' : 'Modifier le roster'}
+                Modifier l’équipe
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {teams.length === 0 && (
+          <p className="mx-5 mt-3 text-center text-[13.5px] leading-relaxed text-cream-dim">
+            Crée une équipe pour ta tablée : elle sera là aux prochaines parties.
+          </p>
+        )}
       </div>
 
-      <div className="shrink-0 pt-4">
+      <div className="shrink-0 px-5 pt-4">
         <button
           type="button"
           disabled={!canStart}
-          onClick={() => startGame(players)}
+          onClick={() => current && startGame(players, current.id)}
           className={`flex min-h-16 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-lg font-black text-felt-950 transition-all duration-300 ease-out ${
             canStart
               ? 'scale-100 opacity-100 shadow-[0_10px_30px_rgba(217,164,65,0.26)]'
@@ -158,42 +160,255 @@ export function SetupScreen() {
         >
           {canStart
             ? `C’est parti · ${players.length} ${plural(players.length, 'joueur')}`
-            : 'Choisis au moins 2 joueurs'}
+            : 'Une équipe de 2 joueurs minimum'}
         </button>
       </div>
+
+      <TeamSheet
+        editing={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(team) => {
+          setSelectedId(team.id)
+          setEditing(null)
+        }}
+        onDeleted={() => {
+          setSelectedId(null)
+          setEditing(null)
+        }}
+      />
+    </main>
+  )
+}
+
+/** Création et modification d'une équipe : nom, membres, ordre de passage. */
+function TeamSheet({
+  editing,
+  onClose,
+  onSaved,
+  onDeleted,
+}: {
+  editing: Editing
+  onClose: () => void
+  onSaved: (team: Team) => void
+  onDeleted: () => void
+}) {
+  const { roster, createTeam, updateTeam, removeTeam, deleteRosterPlayer, cue } = useStore()
+  const existing = editing?.mode === 'edit' ? editing.team : null
+
+  // Remonter la feuille remet le formulaire à l'état de l'équipe visée : la clé
+  // force React à repartir d'un état neuf plutôt que de conserver l'ancien.
+  return (
+    <Sheet
+      key={existing?.id ?? (editing ? 'new' : 'closed')}
+      open={editing !== null}
+      onClose={onClose}
+      label={existing ? 'Modifier l’équipe' : 'Nouvelle équipe'}
+      height="tall"
+    >
+      <TeamForm
+        team={existing}
+        roster={roster}
+        onCue={cue}
+        onDeletePlayer={deleteRosterPlayer}
+        onSubmit={(name, playerIds) => {
+          if (existing) {
+            const updated = { ...existing, name, playerIds }
+            updateTeam(updated)
+            onSaved(updated)
+          } else {
+            onSaved(createTeam(name, playerIds))
+          }
+        }}
+        onDelete={
+          existing
+            ? () => {
+                removeTeam(existing.id)
+                onDeleted()
+              }
+            : undefined
+        }
+      />
+    </Sheet>
+  )
+}
+
+function TeamForm({
+  team,
+  roster,
+  onCue,
+  onSubmit,
+  onDelete,
+  onDeletePlayer,
+}: {
+  team: Team | null
+  roster: Player[]
+  onCue: (cue: 'tap') => void
+  onSubmit: (name: string, playerIds: string[]) => void
+  onDelete?: () => void
+  onDeletePlayer: (id: string) => void
+}) {
+  const [name, setName] = useState(team?.name ?? '')
+  const [picked, setPicked] = useState<string[]>(team?.playerIds ?? [])
+  const [adding, setAdding] = useState(false)
+  const [managing, setManaging] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const toggle = (id: string) => {
+    onCue('tap')
+    setPicked((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    )
+  }
+
+  const label = name.trim() || (team ? team.name : 'Sans nom')
+
+  return (
+    <div className="pb-2">
+      <h2 className="font-display text-2xl">
+        {team ? 'Modifier l’équipe' : 'Nouvelle équipe'}
+      </h2>
+
+      <label
+        htmlFor="team-name"
+        className="mt-5 block text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase"
+      >
+        Nom de l’équipe
+      </label>
+      <input
+        id="team-name"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        autoComplete="off"
+        autoCapitalize="words"
+        maxLength={24}
+        placeholder="Le chalet"
+        className="mt-2 min-h-13 w-full rounded-2xl border border-edge bg-felt-700 px-4 text-[17px] font-semibold text-cream placeholder:font-normal placeholder:text-cream-dim focus:border-brass focus:outline-none"
+      />
+
+      <div className="mt-6 flex items-baseline justify-between">
+        <p className="text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
+          {managing ? 'Retirer du roster' : 'Membres, dans l’ordre de passage'}
+        </p>
+        {roster.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setManaging((v) => !v)}
+            className="min-h-11 pl-3 text-[12.5px] font-bold text-cream-faint"
+          >
+            {managing ? 'Terminé' : 'Gérer'}
+          </button>
+        )}
+      </div>
+
+      {roster.length === 0 ? (
+        <p className="mt-1 rounded-2xl border border-dashed border-edge px-5 py-6 text-center text-[13px] text-cream-dim">
+          Aucun joueur enregistré pour l’instant.
+        </p>
+      ) : (
+        <ul className="mt-1 grid grid-cols-3 gap-2.5">
+          {roster.map((player) => {
+            const rank = picked.indexOf(player.id)
+            const isPicked = rank >= 0 && !managing
+            return (
+              <li key={player.id}>
+                <button
+                  type="button"
+                  onClick={() => (managing ? onDeletePlayer(player.id) : toggle(player.id))}
+                  aria-pressed={managing ? undefined : rank >= 0}
+                  aria-label={managing ? `Retirer ${player.name} du roster` : player.name}
+                  className={`relative flex min-h-21 w-full flex-col items-center justify-center rounded-2xl border px-2 py-2.5 transition-colors duration-200 ${
+                    isPicked
+                      ? 'border-brass bg-brass/12'
+                      : managing
+                        ? 'border-brick/40 bg-brick/8'
+                        : 'border-edge bg-felt-700'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`absolute top-1.5 right-1.5 flex size-5.5 items-center justify-center rounded-full text-[11px] font-black transition-opacity duration-200 ${
+                      isPicked || managing ? 'opacity-100' : 'opacity-0'
+                    } ${managing ? 'bg-brick text-felt-950' : 'text-felt-950'}`}
+                    style={
+                      isPicked ? { background: playerColor(player.colorIndex) } : undefined
+                    }
+                  >
+                    {managing ? '×' : rank + 1}
+                  </span>
+                  <span className="text-2xl leading-none">{player.emoji}</span>
+                  <span className="mt-1.5 max-w-full truncate text-[12.5px] font-bold">
+                    {player.name}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setAdding(true)}
+        className="mt-2.5 flex min-h-13 w-full items-center justify-center rounded-2xl border border-edge bg-felt-700 text-[15px] font-bold text-cream-dim"
+      >
+        + Nouveau joueur
+      </button>
+
+      <button
+        type="button"
+        disabled={picked.length < 2 || !name.trim()}
+        onClick={() => onSubmit(name, picked)}
+        className="mt-7 flex min-h-14 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-base font-black text-felt-950 transition-opacity disabled:opacity-30"
+      >
+        {picked.length < 2
+          ? 'Choisis au moins 2 joueurs'
+          : !name.trim()
+            ? 'Donne un nom à l’équipe'
+            : `Enregistrer ${label}`}
+      </button>
+
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => (confirmDelete ? onDelete() : setConfirmDelete(true))}
+          className="mt-2.5 mb-2 flex min-h-13 w-full items-center justify-center rounded-2xl border border-brick/35 bg-brick/8 text-[14px] font-bold text-brick"
+        >
+          {confirmDelete ? '⚠ Confirmer la suppression' : 'Supprimer l’équipe'}
+        </button>
+      )}
 
       <AddPlayerSheet
         open={adding}
         onClose={() => setAdding(false)}
-        onCreate={(name, emoji) => {
-          const player = createRosterPlayer(name, emoji)
-          setSelected((current) => [...current, player.id])
+        onCreated={(player) => {
+          setPicked((current) => [...current, player.id])
           setAdding(false)
         }}
         takenEmojis={roster.map((p) => p.emoji)}
       />
-    </main>
+    </div>
   )
 }
 
 function AddPlayerSheet({
   open,
   onClose,
-  onCreate,
+  onCreated,
   takenEmojis,
 }: {
   open: boolean
   onClose: () => void
-  onCreate: (name: string, emoji: string) => void
+  onCreated: (player: Player) => void
   takenEmojis: string[]
 }) {
+  const { createRosterPlayer } = useStore()
   const free = EMOJI_CHOICES.filter((e) => !takenEmojis.includes(e))
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState<string>(free[0] ?? EMOJI_CHOICES[0])
 
   const submit = () => {
     if (!name.trim()) return
-    onCreate(name, emoji)
+    onCreated(createRosterPlayer(name, emoji))
     setName('')
     setEmoji(free[1] ?? EMOJI_CHOICES[0])
   }

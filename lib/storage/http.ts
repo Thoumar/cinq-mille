@@ -18,6 +18,9 @@
  * | GET     | `/api/players`       | —            | `Player[]`     |
  * | PUT     | `/api/players/:id`   | `Player`     | 204            |
  * | DELETE  | `/api/players/:id`   | —            | 204            |
+ * | GET     | `/api/teams`         | —            | `Team[]`       |
+ * | PUT     | `/api/teams/:id`     | `Team`       | 204            |
+ * | DELETE  | `/api/teams/:id`     | —            | 204            |
  * | GET     | `/api/game`          | —            | `Game \| null` |
  * | PUT     | `/api/game`          | `Game`       | 204            |
  * | DELETE  | `/api/game/:id`      | —            | 204            |
@@ -28,7 +31,7 @@
  * `PUT /api/game` renvoyant 409 si la partie a été modifiée entre-temps.
  */
 
-import { parseGame, parsePlayers, parseSettings } from './codec'
+import { parseGame, parsePlayers, parseSettings, parseTeams } from './codec'
 import { DEFAULT_SETTINGS, type Repository, type Settings } from './types'
 
 export function createHttpRepository(baseUrl = '/api'): Repository {
@@ -68,6 +71,18 @@ export function createHttpRepository(baseUrl = '/api'): Repository {
 
     async deletePlayer(id) {
       await send('DELETE', `/players/${encodeURIComponent(id)}`)
+    },
+
+    async listTeams() {
+      return (await get('/teams', parseTeams)) ?? []
+    },
+
+    async upsertTeam(team) {
+      await send('PUT', `/teams/${encodeURIComponent(team.id)}`, team)
+    },
+
+    async deleteTeam(id) {
+      await send('DELETE', `/teams/${encodeURIComponent(id)}`)
     },
 
     async loadGame() {
