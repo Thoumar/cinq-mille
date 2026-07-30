@@ -36,7 +36,14 @@
 }
 
 @layer base {
+  /* Règle structurante de toute l'application : le document fait exactement une
+     hauteur et une largeur d'écran, et ne défile jamais. Chaque écran découpe cette
+     surface en bandes et ne rend défilable que celle qui doit l'être. C'est ce qui
+     évite les pages qui glissent dans le vide et les barres du navigateur qui
+     apparaissent au moindre geste. */
   html {
+    height: 100dvh;
+    overflow: hidden;
     background-color: var(--color-felt-950);
     /* Empêche le rebond élastique : l'app doit se sentir posée, pas glissante. */
     overscroll-behavior: none;
@@ -44,6 +51,9 @@
   }
 
   body {
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
     background-color: var(--color-felt-900);
     color: var(--color-cream);
     font-family: var(--font-sans);
@@ -161,6 +171,18 @@
   }
 }
 
+/* Onde de laiton qui s'échappe du joueur tiré au sort, une seule fois. */
+@keyframes halo {
+  from {
+    transform: scale(0.92);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
 @keyframes trophy {
   0%,
   100% {
@@ -183,6 +205,10 @@
   animation: trophy 2.4s ease-in-out infinite;
 }
 
+.animate-halo {
+  animation: halo 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .animate-sheet-in {
   animation: sheet-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
@@ -195,6 +221,7 @@
   .animate-rise,
   .animate-pop,
   .animate-trophy,
+  .animate-halo,
   .animate-sheet-in,
   .animate-backdrop-in {
     animation: none;

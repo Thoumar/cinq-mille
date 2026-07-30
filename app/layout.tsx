@@ -30,9 +30,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={`${body.variable} ${title.variable}`}>
-      <body className="min-h-dvh">
+      <body>
         <StoreProvider>
-          <div className="relative z-1 mx-auto flex min-h-dvh w-full max-w-md flex-col">
+          <div className="relative z-1 mx-auto flex h-full w-full max-w-md flex-col overflow-hidden">
             {children}
           </div>
         </StoreProvider>

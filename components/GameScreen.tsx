@@ -51,8 +51,10 @@ export function GameScreen() {
   }
 
   return (
-    <main className="flex flex-1 flex-col px-4 pt-safe pb-safe">
-      <header className="flex items-center justify-between py-3">
+    /* Trois bandes, comme partout dans l'application : en-tête et zone de saisie
+       sont fixes, seul le classement défile quand la tablée déborde. */
+    <main className="flex flex-1 flex-col overflow-hidden px-4 pt-safe pb-safe">
+      <header className="flex shrink-0 items-center justify-between py-3">
         <p className="num text-[13px] font-bold tracking-wide text-cream-dim">
           Tour {gameView.currentRound}
         </p>
@@ -77,19 +79,21 @@ export function GameScreen() {
       </header>
 
       {store.writeError && (
-        <p className="mb-3 rounded-xl border border-brick/40 bg-brick/10 px-3 py-2 text-[12px] text-brick">
+        <p className="mb-3 shrink-0 rounded-xl border border-brick/40 bg-brick/10 px-3 py-2 text-[12px] text-brick">
           Sauvegarde impossible ({store.writeError}). La partie reste jouable, mais elle
           pourrait ne pas survivre à une fermeture de l’onglet.
         </p>
       )}
 
-      <Scoreboard
-        standings={gameView.standings}
-        currentPlayerId={gameView.currentPlayerId}
-        onPick={(state) => setPicked(state.player.id)}
-      />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <Scoreboard
+          standings={gameView.standings}
+          currentPlayerId={gameView.currentPlayerId}
+          onPick={(state) => setPicked(state.player.id)}
+        />
+      </div>
 
-      <div className="mt-auto pt-6">
+      <div className="shrink-0 pt-4">
         {toast && store.undoLabel && (
           <div className="animate-rise mb-2.5 flex items-center justify-between rounded-xl border border-edge bg-felt-800 px-3.5 py-2.5">
             <span className="num text-[13px] text-cream-dim">

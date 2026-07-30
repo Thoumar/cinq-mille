@@ -21,8 +21,11 @@ export function VictoryScreen() {
   if (!winner) return null
 
   return (
-    <main className="flex flex-1 flex-col px-4 pt-safe pb-safe">
-      <section className="pt-10 pb-8 text-center">
+    /* Le bilan est le seul écran au contenu réellement long : il défile dans sa
+       bande, les deux actions de sortie restent fixes en bas. */
+    <main className="flex flex-1 flex-col overflow-hidden px-4 pt-safe pb-safe">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <section className="pt-8 pb-8 text-center">
         <p className="animate-trophy text-5xl">🏆</p>
         <p className="mt-4 text-6xl leading-none">{winner.player.emoji}</p>
         <h1
@@ -91,15 +94,18 @@ export function VictoryScreen() {
 
       {/* Une faute de frappe peut déclencher une victoire. Sans cette porte de
           sortie, la seule issue serait d'abandonner la partie. */}
-      <button
-        type="button"
-        onClick={undo}
-        className="mx-auto mt-5 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
-      >
-        ↶ Ce n’était pas ça — annuler le dernier score
-      </button>
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={undo}
+          className="mt-5 mb-2 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
+        >
+          ↶ Ce n’était pas ça — annuler le dernier score
+        </button>
+      </div>
+      </div>
 
-      <div className="mt-auto flex flex-col gap-2.5 pt-6">
+      <div className="flex shrink-0 flex-col gap-2.5 pt-4">
         <button
           type="button"
           onClick={rematch}
