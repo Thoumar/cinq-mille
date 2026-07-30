@@ -1,18 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 import { playerColor } from '@/lib/colors'
 import { progression } from '@/lib/engine'
 import { fmt } from '@/lib/format'
-import { GOAL } from '@/lib/rules'
 import { useStore } from '@/lib/store'
 
 import { ChartIcon, GearIcon } from './icons'
 import { NumPad } from './NumPad'
 import { ProgressChart } from './ProgressChart'
 import { Scoreboard } from './Scoreboard'
-import { ScoreSheet } from './ScoreSheet'
 import { Sheet } from './Sheet'
 
 export function GameScreen() {
@@ -20,14 +19,12 @@ export function GameScreen() {
   const { game, gameView, settings } = store
 
   const [entry, setEntry] = useState(false)
-  const [carnet, setCarnet] = useState(false)
   const [menu, setMenu] = useState(false)
   const [chart, setChart] = useState(false)
   const [addPlayer, setAddPlayer] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
   const [toast, setToast] = useState(false)
   const [confirmAbandon, setConfirmAbandon] = useState(false)
-  const dragStart = useRef<number | null>(null)
 
   // Le bandeau d'annulation reste ~5 s après une validation (SPEC.md §4.5).
   useEffect(() => {
@@ -132,33 +129,17 @@ export function GameScreen() {
           </p>
         )}
 
-        {/* Poignée du carnet : tap ou glissement vers le haut. */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setCarnet(true)}
-          onKeyDown={(event) => event.key === 'Enter' && setCarnet(true)}
-          onPointerDown={(event) => {
-            dragStart.current = event.clientY
-          }}
-          onPointerMove={(event) => {
-            if (dragStart.current !== null && dragStart.current - event.clientY > 26) {
-              dragStart.current = null
-              setCarnet(true)
-            }
-          }}
-          onPointerUp={() => {
-            dragStart.current = null
-          }}
-          className="mt-3 flex cursor-pointer flex-col items-center gap-1.5 pt-2 pb-1"
+        {/* Le carnet est une page, plus une feuille : on ne consulte pas un tableau
+            dans un contenant qui se ferme au moindre glissement vers le bas. */}
+        <Link
+          href="/carnet"
+          className="mt-2 flex min-h-11 items-center justify-center gap-1.5 text-[12.5px] font-bold text-cream-faint"
         >
-          <span className="h-1.5 w-11 rounded-full bg-cream-faint/45" />
-          <span className="text-[11px] font-semibold tracking-wide text-cream-faint">
-            {gameView.rows.length === 0
-              ? 'le carnet'
-              : `le carnet · ${gameView.rows.length} ${gameView.rows.length > 1 ? 'tours' : 'tour'}`}
-          </span>
-        </div>
+          {gameView.rows.length === 0
+            ? 'Le carnet'
+            : `Le carnet · ${gameView.rows.length} ${gameView.rows.length > 1 ? 'tours' : 'tour'}`}
+          <span className="text-base leading-none">›</span>
+        </Link>
       </div>
 
       {/* ---------------------------------------------------------- saisie */}
@@ -172,16 +153,6 @@ export function GameScreen() {
             onTap={() => store.cue('tap')}
           />
         )}
-      </Sheet>
-
-      {/* ---------------------------------------------------------- carnet */}
-      <Sheet open={carnet} onClose={() => setCarnet(false)} label="Le carnet" height="tall">
-        <h2 className="font-display mb-3 text-2xl">Le carnet</h2>
-        <ScoreSheet view={gameView} />
-        <p className="mt-3 mb-2 text-[11.5px] leading-relaxed text-cream-faint">
-          Un score barré est un tour sous les 500 avant ouverture : il ne compte pas.
-          Un « ↰ » signale un rebond au-dessus de {fmt(GOAL)}.
-        </p>
       </Sheet>
 
       {/* ------------------------------------------------------ progression */}
