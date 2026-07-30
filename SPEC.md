@@ -63,10 +63,9 @@ Un joueur commence la partie **« non ouvert »**, à 0 point.
 - Le tour est tout de même inscrit au carnet, marqué comme non ouvrant (affiché en grisé
   et barré, avec la valeur tentée), pour garder la trace de la partie.
 
-> **Point à confirmer** : je retiens **500 inclus** ouvre la partie (un tour à exactement
-> 500 ouvre). Ta formulation était « il faut dépasser les 500 », qui se lit aussi comme
-> « strictement plus de 500 ». Dis-moi si tu veux `> 500` et je change la constante et le
-> test correspondant.
+**500 inclus ouvre la partie** : un tour à exactement 500 ouvre le compteur (confirmé
+pendant le cadrage). La constante vit dans `lib/rules.ts` (`OPENING_THRESHOLD`) et le cas
+limite est couvert par un test dédié.
 
 ### 3.3 Rebond au-dessus de 5 000
 
@@ -220,8 +219,78 @@ La courbe de progression est également consultable **pendant** la partie depuis
 
 ## 5. Persistance
 
-- **Une seule partie en cours à la fois**, sauvegardée dans le `localStorage` à chaque
-  mutation. À la réouverture, l'app retombe directement sur la partie en cours, au bon
+### 5.1 Un adaptateur, pas un appel direct à `localStorage`
+
+Tout passe par un **port** (`Repository`, dans `lib/storage/types.ts`) dont l'unique
+implémentation active aujourd'hui écrit dans le `localStorage`. L'objectif est explicite :
+pouvoir basculer sur **Postgres** sans toucher un composant.
+
+Trois décisions rendent cette bascule bon marché, et elles devaient être prises
+maintenant :
+
+1. **Le port est asynchrone**, alors que `localStorage` est synchrone. Une base distante
+   ne l'est pas. En partant en synchrone, le passage à Postgres imposerait de réécrire
+   chaque appelant et d'introduire partout des états de chargement inexistants. L'écran
+   d'attente initial existe donc dès le premier jour, pour un stockage qui n'en a pas
+   besoin.
+2. **Les opérations sont métier, pas clé/valeur.** Un port `get(key)` / `set(key, value)`
+   forcerait l'adaptateur Postgres à stocker un blob JSON, ce qui annulerait l'intérêt
+   d'une base. Ici chaque méthode se traduit en une requête SQL — le schéma cible est
+   déjà écrit dans `db/schema.sql`, requête par requête en commentaire.
+3. **Les identifiants sont générés côté client** (`lib/id.ts`), au format UUID v4. Un
+   `INSERT` n'a donc pas besoin d'un aller-retour pour connaître son id, et les colonnes
+   `uuid` de Postgres restent utilisables.
+
+L'interface en pratique :
+
+```ts
+interface Repository {
+  listPlayers(): Promise<Player[]>
+  upsertPlayer(player: Player): Promise<void>
+  deletePlayer(id: string): Promise<void>
+  loadGame(): Promise<Game | null>
+  saveGame(game: Game): Promise<void>
+  deleteGame(id: string): Promise<void>
+  loadSettings(): Promise<Settings>
+  saveSettings(settings: Settings): Promise<void>
+}
+```
+
+| Fichier                    | Rôle                                                       |
+| -------------------------- | ---------------------------------------------------------- |
+| `lib/storage/types.ts`     | Le port et son contrat                                     |
+| `lib/storage/codec.ts`     | Sérialisation, validation, migrations de schéma            |
+| `lib/storage/local.ts`     | Adaptateur `localStorage` (actif)                          |
+| `lib/storage/http.ts`      | Adaptateur HTTP, écrit et prêt, non branché                |
+| `lib/storage/index.ts`     | **Le seul point de bascule** (`NEXT_PUBLIC_STORAGE=http`)  |
+| `db/schema.sql`            | Schéma Postgres cible                                      |
+
+**Procédure de bascule vers Postgres**, le jour où on la veut : créer les tables,
+écrire les huit routes listées dans `http.ts` (trois lignes de SQL chacune), poser
+`NEXT_PUBLIC_STORAGE=http`. Aucun composant, aucun hook, aucune fonction métier ne
+change.
+
+### 5.2 Robustesse et écriture différée
+
+- Tout ce qui **sort** d'un stockage est traité comme non fiable : le `localStorage` est
+  éditable par l'utilisateur, et une version antérieure de l'app a pu y écrire une autre
+  forme. Les validateurs de `codec.ts` ne lèvent jamais — une lecture inexploitable rend
+  `null` et l'app repart proprement. Une application qui plante au démarrage à cause d'un
+  stockage abîmé est irrécupérable pour celui qui l'utilise.
+- Les données portent une **enveloppe versionnée** (`SCHEMA_VERSION`) avec un point
+  d'accroche pour les migrations. Une version future inconnue est refusée plutôt que
+  devinée.
+- **L'état en mémoire est la vérité de l'affichage.** Une action met l'état à jour
+  immédiatement puis l'écriture part en arrière-plan : l'interface restera aussi vive
+  derrière Postgres qu'aujourd'hui.
+- Les écritures sont **sérialisées dans une file** : sans cela, deux saisies rapprochées
+  pourraient arriver dans le désordre sur un adaptateur réseau, et la dernière écriture
+  gagnante ne serait pas la dernière action.
+- Un échec d'écriture est signalé dans l'interface sans interrompre la partie.
+
+### 5.3 Ce qui est persisté
+
+- **Une seule partie en cours à la fois**, sauvegardée à chaque mutation. À la réouverture, l'app retombe directement sur la partie en cours, au bon
   joueur, carnet intact.
 - Le **roster** (noms + emojis) persiste indépendamment des parties.
 - **Pas d'historique des parties terminées.** Une fois l'écran de victoire quitté, la
@@ -405,6 +474,7 @@ Ce qui a été explicitement écarté pendant l'entretien, et pourquoi :
 | Progression          | Jauges + courbe + stats de fin                                  |
 | Cas de table         | Passer un tour · retirer · ajouter en cours                     |
 | Persistance          | Une partie en cours, reprise automatique                        |
+| Stockage             | Adaptateur asynchrone, `localStorage` aujourd'hui, Postgres prêt |
 | Confort              | Wake lock · vibration · sons (off par défaut) · PWA hors-ligne  |
 | Direction artistique | Feutre de table, thème sombre unique                            |
 | Lisibilité           | Densité équilibrée                                              |

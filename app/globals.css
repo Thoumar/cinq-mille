@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/**
+ * Direction artistique « feutre de table » (SPEC.md §7).
+ *
+ * Deux matières, et rien d'autre : le feutre vert pour l'application, le papier
+ * blanc cassé pour le carnet. Ce contraste porte toute l'identité — inutile
+ * d'ajouter des ornements par-dessus.
+ */
+@theme {
+  --color-felt-950: #06170f;
+  --color-felt-900: #0a2317;
+  --color-felt-800: #0f2e1f;
+  --color-felt-700: #143a27;
+  --color-felt-600: #1a4832;
+  --color-edge: #1f5539;
+
+  --color-paper: #f1ead7;
+  --color-paper-line: #d3c8ac;
+  --color-ink: #221d15;
+  --color-ink-soft: #6b6151;
+
+  --color-cream: #f2eee2;
+  --color-cream-dim: #a3bbac;
+  --color-cream-faint: #6c8879;
+
+  --color-brass: #d9a441;
+  --color-brass-bright: #f0c76a;
+  --color-brick: #cc5c4f;
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-title), Georgia, serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    background-color: var(--color-felt-950);
+    /* Empêche le rebond élastique : l'app doit se sentir posée, pas glissante. */
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background-color: var(--color-felt-900);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    /* Supprime le délai de 300 ms du double-tap sans interdire le pincement. */
+    touch-action: manipulation;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Grain du feutre. Fixé, non interactif, sous le contenu. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.055;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Chiffres à largeur fixe partout : un score qui change ne doit pas faire
+     sautiller la mise en page. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  button {
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@utility pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+/* Le carnet : la seule surface « papier » de l'interface. */
+@utility paper {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23p)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes trophy {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(3deg);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-pop {
+  animation: pop 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-trophy {
+  animation: trophy 2.4s ease-in-out infinite;
+}
+
+.animate-sheet-in {
+  animation: sheet-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.animate-backdrop-in {
+  animation: backdrop-in 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-pop,
+  .animate-trophy,
+  .animate-sheet-in,
+  .animate-backdrop-in {
+    animation: none;
+  }
 }
