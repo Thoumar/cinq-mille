@@ -243,10 +243,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [enqueue, game?.id, repository])
 
   const rematch = useCallback(() => {
-    const players = game?.players
-    if (!players || players.length === 0) return
+    if (!game) return
+    // Les joueurs arrivés en cours de partie sont dans le journal, pas dans
+    // `game.players` : on repart de la vue pour ne pas les oublier, et on laisse
+    // de côté ceux qui ont quitté la table.
+    const players = buildView(game)
+      .states.filter((state) => !state.removed)
+      .map((state) => state.player)
+    if (players.length < 2) return
     startGame(players)
-  }, [game?.players, startGame])
+  }, [game, startGame])
 
   const updateSettings = useCallback(
     (patch: Partial<Settings>) => {

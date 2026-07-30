@@ -10,7 +10,7 @@ import { ProgressChart } from './ProgressChart'
 import { ScoreSheet } from './ScoreSheet'
 
 export function VictoryScreen() {
-  const { game, gameView, rematch, abandonGame } = useStore()
+  const { game, gameView, rematch, abandonGame, undo } = useStore()
   if (!game || !gameView) return null
 
   const summary = stats(game)
@@ -89,7 +89,17 @@ export function VictoryScreen() {
         </div>
       </details>
 
-      <div className="mt-auto flex flex-col gap-2.5 pt-8">
+      {/* Une faute de frappe peut déclencher une victoire. Sans cette porte de
+          sortie, la seule issue serait d'abandonner la partie. */}
+      <button
+        type="button"
+        onClick={undo}
+        className="mx-auto mt-5 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
+      >
+        ↶ Ce n’était pas ça — annuler le dernier score
+      </button>
+
+      <div className="mt-auto flex flex-col gap-2.5 pt-6">
         <button
           type="button"
           onClick={rematch}

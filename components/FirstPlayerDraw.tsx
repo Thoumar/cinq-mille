@@ -30,7 +30,9 @@ export function FirstPlayerDraw() {
 
     const tick = () => {
       setIndex(step % players.length)
-      cue('tap')
+      // Pas de retour haptique à chaque cran : sur une grande tablée le défilement
+      // ferait une vingtaine de vibrations d'affilée, ce qui n'est pas un rituel
+      // mais une alarme.
       step += 1
       if (step >= total) {
         setIndex(winnerIndex)
