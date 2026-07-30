@@ -19,11 +19,32 @@ export function getRepository(): Repository {
     return cached
   }
 
-  // Pendant le rendu serveur il n'y a pas de `localStorage` : on renvoie un stockage
-  // en mémoire, jamais lu côté client puisque le vrai chargement a lieu dans un effet.
-  const storage = typeof window === 'undefined' ? memoryStorage() : window.localStorage
-  cached = createLocalRepository(storage)
+  cached = createLocalRepository(safeStorage())
   return cached
+}
+
+/**
+ * Récupère le `localStorage` sans jamais lever.
+ *
+ * L'accès à la **propriété** `window.localStorage` lève une `SecurityError` dans
+ * Safari quand les cookies sont bloqués, et dans plusieurs navigateurs en navigation
+ * privée verrouillée. Comme ce code s'exécute pendant le rendu du fournisseur, une
+ * exception ici ne dégrade pas l'application : elle la remplace par un écran noir.
+ * D'où le repli en mémoire — la partie n'est alors pas sauvegardée entre deux
+ * ouvertures, mais elle est jouable.
+ */
+function safeStorage(): Storage {
+  if (typeof window === 'undefined') return memoryStorage()
+  try {
+    const storage = window.localStorage
+    // Certains navigateurs exposent l'objet mais refusent l'écriture : on vérifie.
+    const probe = '__cinq_mille_probe__'
+    storage.setItem(probe, '1')
+    storage.removeItem(probe)
+    return storage
+  } catch {
+    return memoryStorage()
+  }
 }
 
 /** Réservé aux tests. */

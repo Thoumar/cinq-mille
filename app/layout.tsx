@@ -36,6 +36,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </div>
         </StoreProvider>
+        <noscript>
+          <div
+            style={{
+              padding: '2rem',
+              textAlign: 'center',
+              color: '#f2eee2',
+              fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            Ce carnet a besoin de JavaScript pour fonctionner. Active-le dans les
+            réglages du navigateur.
+          </div>
+        </noscript>
         <RegisterServiceWorker />
       </body>
     </html>

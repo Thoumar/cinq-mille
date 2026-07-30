@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5000 — diagnostic</title>
+<style>
+  body{background:#0a2317;color:#f2eee2;font:16px/1.5 system-ui,-apple-system,sans-serif;margin:0;padding:18px}
+  h1{font-size:18px;margin:0 0 14px}
+  .row{border:1px solid #1f5539;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6c8879}
+  .v{font-size:15px;font-weight:700;margin-top:3px;word-break:break-all}
+  .ok{color:#74d69a}.ko{color:#cc5c4f}
+  pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#a3bbac;margin:6px 0 0}
+</style>
+</head>
+<body>
+<h1>Diagnostic 5000</h1>
+
+<div class="row"><div class="k">Étape 1 — HTML</div><div class="v ok">OK (tu lis ce texte)</div></div>
+<div class="row"><div class="k">Étape 2 — JavaScript classique</div><div class="v ko" id="s2">NON EXÉCUTÉ</div></div>
+<div class="row"><div class="k">Étape 3 — JavaScript moderne (modules)</div><div class="v ko" id="s3">NON EXÉCUTÉ</div></div>
+<div class="row"><div class="k">Étape 4 — Syntaxe récente</div><div class="v ko" id="s4">NON TESTÉ</div></div>
+<div class="row"><div class="k">Étape 5 — Filtre SVG (grain)</div><div class="v" id="s5">…</div></div>
+<div class="row"><div class="k">Étape 6 — Bundle de l’app</div><div class="v" id="s6">…</div></div>
+<div class="row"><div class="k">localStorage</div><div class="v" id="ls">…</div></div>
+<div class="row"><div class="k">Navigateur</div><pre id="ua"></pre></div>
+<div class="row"><div class="k">Erreurs interceptées</div><pre id="err">aucune</pre></div>
+
+<script>
+/* Volontairement en syntaxe ES5 : ce script doit s'exécuter même sur un
+   navigateur ancien, justement pour pouvoir dire qu'il est ancien. */
+window.onerror = function (message) {
+  document.getElementById('err').textContent = String(message)
+  return false
+}
+
+document.getElementById('s2').textContent = 'OK'
+document.getElementById('s2').className = 'v ok'
+document.getElementById('ua').textContent = navigator.userAgent + '\n\nécran ' +
+  window.screen.width + '×' + window.screen.height + ' · dpr ' + (window.devicePixelRatio || 1)
+
+try {
+  var probe = '__diag__'
+  window.localStorage.setItem(probe, '1')
+  window.localStorage.removeItem(probe)
+  document.getElementById('ls').textContent = 'disponible'
+  document.getElementById('ls').className = 'v ok'
+} catch (e) {
+  document.getElementById('ls').textContent = 'BLOQUÉ (' + e.name + ')'
+  document.getElementById('ls').className = 'v ko'
+}
+
+/* Étape 4 : syntaxes que Next 16 émet sans les transpiler. Si ça casse ici,
+   le navigateur est trop ancien pour le bundle de l'application. */
+try {
+  eval('const f = (a = 1) => a ?? 2; class C { #x = 1; get x(){ return this.#x } }; [1].at(0); f?.()')
+  document.getElementById('s4').textContent = 'OK'
+  document.getElementById('s4').className = 'v ok'
+} catch (e) {
+  document.getElementById('s4').textContent = 'ÉCHEC — navigateur trop ancien (' + e.message + ')'
+  document.getElementById('s4').className = 'v ko'
+}
+
+/* Étape 5 : le grain du thème est un filtre SVG. Sur certains téléphones, le
+   rastériser en fond répété est très coûteux. On le chronomètre. */
+;(function () {
+  var t0 = Date.now()
+  var d = document.createElement('div')
+  d.style.cssText = "position:fixed;left:-9999px;width:300px;height:300px;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E\")"
+  document.body.appendChild(d)
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      var ms = Date.now() - t0
+      var el = document.getElementById('s5')
+      el.textContent = ms + ' ms'
+      el.className = ms > 400 ? 'v ko' : 'v ok'
+      document.body.removeChild(d)
+    })
+  })
+})()
+
+/* Étape 6 : est-ce que le bundle de l'app se télécharge ? */
+;(function () {
+  var x = new XMLHttpRequest()
+  x.open('GET', '/', true)
+  x.onload = function () {
+    var el = document.getElementById('s6')
+    el.textContent = 'page servie, ' + x.responseText.length + ' octets'
+    el.className = 'v ok'
+  }
+  x.onerror = function () {
+    document.getElementById('s6').textContent = 'ÉCHEC réseau'
+    document.getElementById('s6').className = 'v ko'
+  }
+  x.send()
+})()
+</script>
+
+<script type="module">
+  document.getElementById('s3').textContent = 'OK'
+  document.getElementById('s3').className = 'v ok'
+</script>
+</body>
+</html>

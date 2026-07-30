@@ -15,9 +15,12 @@ export default function Home() {
   const { ready, game, gameView, drawing } = useStore()
 
   if (!ready) {
+    // Écran d'attente explicite : un simple logo pâle sur fond sombre se lit comme
+    // « la page est cassée » plutôt que comme « ça charge ».
     return (
-      <main className="flex flex-1 items-center justify-center">
-        <span className="font-display text-4xl text-brass/40">5000</span>
+      <main className="flex flex-1 flex-col items-center justify-center gap-3">
+        <span className="font-display text-5xl text-brass">5000</span>
+        <span className="text-[13px] text-cream-faint">chargement du carnet…</span>
       </main>
     )
   }

@@ -50,15 +50,29 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Grain du feutre. Fixé, non interactif, sous le contenu. */
+  /* Trame du feutre.
+     Volontairement en dégradés CSS et non en filtre SVG `feTurbulence` : rastériser
+     un bruit fractal en fond répété plein écran est très coûteux sur mobile et peut
+     bloquer le rendu. Deux hachures croisées très pâles suffisent à casser
+     l'aplat. */
   body::before {
     content: "";
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.055;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.014) 0 1px,
+        transparent 1px 3px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        rgba(0, 0, 0, 0.03) 0 1px,
+        transparent 1px 3px
+      ),
+      radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.035), transparent 60%);
   }
 
   /* Chiffres à largeur fixe partout : un score qui change ne doit pas faire
@@ -82,11 +96,16 @@
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
-/* Le carnet : la seule surface « papier » de l'interface. */
+/* Le carnet : la seule surface « papier » de l'interface. Même raison qu'au-dessus,
+   la fibre est faite de hachures et non d'un filtre. */
 @utility paper {
   background-color: var(--color-paper);
   color: var(--color-ink);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23p)' opacity='0.35'/%3E%3C/svg%3E");
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(107, 97, 81, 0.045) 0 1px,
+    transparent 1px 4px
+  );
 }
 
 @keyframes rise {
