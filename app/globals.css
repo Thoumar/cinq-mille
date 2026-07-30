@@ -22,11 +22,14 @@
 
   --color-cream: #f2eee2;
   --color-cream-dim: #a3bbac;
-  --color-cream-faint: #6c8879;
+  /* Les deux teintes ci-dessous ont été relevées pour franchir 4.5:1 sur les trois
+     verts de feutre : elles portent respectivement les mentions secondaires et tous
+     les messages d'erreur, donc du texte qui doit se lire. */
+  --color-cream-faint: #86a293;
 
   --color-brass: #d9a441;
   --color-brass-bright: #f0c76a;
-  --color-brick: #cc5c4f;
+  --color-brick: #ea7a6d;
 
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-title), Georgia, serif;
@@ -85,6 +88,13 @@
   button {
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* Une seule règle de focus pour toute l'application : au clavier uniquement, donc
+     invisible au doigt, mais l'interface reste parcourable sans écran tactile. */
+  :focus-visible {
+    outline: 2px solid var(--color-brass);
+    outline-offset: 3px;
   }
 }
 

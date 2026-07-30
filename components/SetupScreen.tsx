@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { EMOJI_CHOICES, playerColor } from '@/lib/colors'
 import type { Player } from '@/lib/engine'
-import { plural } from '@/lib/format'
+import { fmt, plural } from '@/lib/format'
 import { GOAL, OPENING_THRESHOLD } from '@/lib/rules'
 import { useStore } from '@/lib/store'
 
@@ -28,101 +28,124 @@ export function SetupScreen() {
   const players = selected
     .map((id) => roster.find((p) => p.id === id))
     .filter((p): p is Player => Boolean(p))
+  const canStart = players.length >= 2
 
   return (
     <main className="flex flex-1 flex-col px-5 pt-safe pb-safe">
-      <header className="pt-6 pb-7">
-        <p className="text-[11px] font-bold tracking-[0.22em] text-cream-faint uppercase">
-          Nouvelle partie
-        </p>
-        <h1 className="font-display text-5xl leading-none text-brass">5000</h1>
-        <p className="mt-2 text-sm text-cream-dim">
-          Premier à {GOAL.toLocaleString('fr-FR')} pile · ouverture à {OPENING_THRESHOLD}
-        </p>
-      </header>
+      {/* Le bloc défile quand la tablée est nombreuse, et se centre verticalement
+          quand elle ne l'est pas — `min-h-full` + `justify-center` plutôt que
+          `justify-center` seul, qui rognerait le haut du contenu en cas de
+          débordement. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex min-h-full flex-col justify-center gap-9 py-8">
+          <header className="text-center">
+            <h1 className="font-display text-[5.25rem] leading-[0.85] tracking-[-0.03em] text-brass">
+              5000
+            </h1>
+            <p className="mx-auto mt-4 max-w-62 text-[13.5px] leading-relaxed text-cream-dim">
+              Le premier à {fmt(GOAL)} pile gagne. Il faut un tour à{' '}
+              {OPENING_THRESHOLD} pour ouvrir son compteur.
+            </p>
+          </header>
 
-      {roster.length > 0 && (
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
-            {editing ? 'Retirer du roster' : 'Qui joue ? Tape dans l’ordre de passage'}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setEditing((v) => !v)}
-            className="min-h-8 px-1 text-xs font-semibold text-brass/80"
-          >
-            {editing ? 'Terminé' : 'Modifier'}
-          </button>
-        </div>
-      )}
+          <section>
+            <h2 className="mb-3 text-center text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
+              {roster.length === 0
+                ? 'Le roster est vide'
+                : editing
+                  ? 'Tape un joueur pour le retirer'
+                  : 'Qui joue ? Tape dans l’ordre de passage'}
+            </h2>
 
-      {roster.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-edge px-5 py-9 text-center">
-          <p className="text-3xl">🎲</p>
-          <p className="mt-3 text-sm text-cream-dim">
-            Personne dans le roster. Ajoute les joueurs une fois, ils seront là aux
-            prochaines parties.
-          </p>
-        </div>
-      ) : (
-        <ul className="grid grid-cols-2 gap-2.5">
-          {roster.map((player) => {
-            const rank = selected.indexOf(player.id)
-            const isSelected = rank >= 0
-            return (
-              <li key={player.id}>
+            {roster.length === 0 ? (
+              <p className="mx-auto max-w-70 rounded-2xl border border-dashed border-edge px-6 py-7 text-center text-[13.5px] leading-relaxed text-cream-dim">
+                Ajoute les joueurs une fois : ils seront là aux prochaines parties.
+              </p>
+            ) : (
+              <ul className="grid grid-cols-2 gap-2.5">
+                {roster.map((player) => {
+                  const rank = selected.indexOf(player.id)
+                  const isSelected = rank >= 0 && !editing
+                  return (
+                    <li key={player.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          editing ? deleteRosterPlayer(player.id) : toggle(player.id)
+                        }
+                        aria-pressed={editing ? undefined : rank >= 0}
+                        aria-label={
+                          editing ? `Retirer ${player.name} du roster` : player.name
+                        }
+                        className={`relative flex min-h-25 w-full flex-col items-center justify-center rounded-2xl border px-2 py-3 transition-colors duration-200 ${
+                          isSelected
+                            ? 'border-brass bg-brass/12'
+                            : editing
+                              ? 'border-brick/40 bg-brick/8'
+                              : 'border-edge bg-felt-800'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`absolute top-2 right-2 flex size-6 items-center justify-center rounded-full text-xs font-black transition-opacity duration-200 ${
+                            isSelected || editing ? 'opacity-100' : 'opacity-0'
+                          } ${editing ? 'bg-brick text-felt-950' : 'text-felt-950'}`}
+                          style={
+                            isSelected
+                              ? { background: playerColor(player.colorIndex) }
+                              : undefined
+                          }
+                        >
+                          {editing ? '×' : rank + 1}
+                        </span>
+                        <span className="text-3xl leading-none">{player.emoji}</span>
+                        <span className="mt-2 max-w-full truncate text-sm font-bold">
+                          {player.name}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="mt-2.5 flex min-h-13 w-full items-center justify-center rounded-2xl border border-edge bg-felt-800 text-[15px] font-bold text-cream-dim"
+            >
+              + Nouveau joueur
+            </button>
+
+            {roster.length > 0 && (
+              <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => (editing ? deleteRosterPlayer(player.id) : toggle(player.id))}
-                  aria-pressed={isSelected}
-                  className={`relative flex min-h-24 w-full flex-col items-center justify-center rounded-2xl border px-2 py-3 transition-colors ${
-                    isSelected && !editing
-                      ? 'border-brass bg-brass/12'
-                      : 'border-edge bg-felt-800'
-                  }`}
+                  onClick={() => setEditing((v) => !v)}
+                  className="mt-1 min-h-11 px-4 text-[13px] font-bold text-cream-faint"
                 >
-                  {isSelected && !editing && (
-                    <span
-                      className="num absolute top-2 right-2 flex size-6 items-center justify-center rounded-full text-xs font-black text-felt-950"
-                      style={{ background: playerColor(player.colorIndex) }}
-                    >
-                      {rank + 1}
-                    </span>
-                  )}
-                  {editing && (
-                    <span className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-brick text-sm font-black text-cream">
-                      ×
-                    </span>
-                  )}
-                  <span className="text-3xl leading-none">{player.emoji}</span>
-                  <span className="mt-2 max-w-full truncate text-sm font-bold">
-                    {player.name}
-                  </span>
+                  {editing ? 'Terminé' : 'Modifier le roster'}
                 </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
-      <button
-        type="button"
-        onClick={() => setAdding(true)}
-        className="mt-3 flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-edge bg-felt-800 text-[15px] font-bold text-cream-dim"
-      >
-        + Nouveau joueur
-      </button>
-
-      <div className="mt-auto pt-8">
+      <div className="pt-3">
         <button
           type="button"
-          disabled={players.length < 2}
+          disabled={!canStart}
           onClick={() => startGame(players)}
-          className="flex min-h-16 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-lg font-black text-felt-950 shadow-[0_8px_24px_rgba(217,164,65,0.22)] transition-opacity disabled:opacity-30 disabled:shadow-none"
+          className={`flex min-h-16 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-lg font-black text-felt-950 transition-all duration-300 ease-out ${
+            canStart
+              ? 'scale-100 opacity-100 shadow-[0_10px_30px_rgba(217,164,65,0.26)]'
+              : 'scale-[0.985] opacity-35 shadow-none'
+          }`}
         >
-          {players.length < 2
-            ? 'Choisis au moins 2 joueurs'
-            : `C’est parti · ${players.length} ${plural(players.length, 'joueur')}`}
+          {canStart
+            ? `C’est parti · ${players.length} ${plural(players.length, 'joueur')}`
+            : 'Choisis au moins 2 joueurs'}
         </button>
       </div>
 
@@ -166,10 +189,14 @@ function AddPlayerSheet({
     <Sheet open={open} onClose={onClose} label="Nouveau joueur" height="tall">
       <h2 className="font-display text-2xl">Nouveau joueur</h2>
 
-      <label className="mt-5 block text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
+      <label
+        htmlFor="new-player-name"
+        className="mt-5 block text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase"
+      >
         Prénom
       </label>
       <input
+        id="new-player-name"
         value={name}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => event.key === 'Enter' && submit()}
@@ -177,7 +204,7 @@ function AddPlayerSheet({
         autoCapitalize="words"
         maxLength={20}
         placeholder="Thomas"
-        className="mt-2 min-h-13 w-full rounded-2xl border border-edge bg-felt-700 px-4 text-[17px] font-semibold text-cream placeholder:font-normal placeholder:text-cream-faint focus:border-brass focus:outline-none"
+        className="mt-2 min-h-13 w-full rounded-2xl border border-edge bg-felt-700 px-4 text-[17px] font-semibold text-cream placeholder:font-normal placeholder:text-cream-dim focus:border-brass focus:outline-none"
       />
 
       <p className="mt-6 text-[11px] font-bold tracking-[0.16em] text-cream-faint uppercase">
@@ -193,6 +220,7 @@ function AddPlayerSheet({
                 disabled={taken}
                 onClick={() => setEmoji(candidate)}
                 aria-pressed={emoji === candidate}
+                aria-label={taken ? `${candidate}, déjà pris` : candidate}
                 className={`flex size-full min-h-12 items-center justify-center rounded-xl border text-2xl transition-colors disabled:opacity-20 ${
                   emoji === candidate ? 'border-brass bg-brass/15' : 'border-edge bg-felt-700'
                 }`}
@@ -208,7 +236,7 @@ function AddPlayerSheet({
         type="button"
         disabled={!name.trim()}
         onClick={submit}
-        className="mt-7 mb-2 flex min-h-14 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-base font-black text-felt-950 disabled:opacity-30"
+        className="mt-7 mb-2 flex min-h-14 w-full items-center justify-center rounded-2xl bg-linear-to-b from-brass-bright to-brass text-base font-black text-felt-950 transition-opacity disabled:opacity-30"
       >
         Ajouter {emoji}
       </button>
