@@ -36,6 +36,28 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local dev toolchain (Flutter SDK, Android SDK, JDK) — user-space installs, not vendored
+/.toolchain
+
+# safety net: this sandbox's uid has no passwd entry, so a misbehaving JVM
+# call can fall back to a literal "?" for user.home and write junk there
+/mobile/android/?/
+/mobile/android/app/?/
+
+# Flutter/Dart
+/mobile/.dart_tool/
+/mobile/.flutter-plugin-dependencies
+/mobile/build/
+/mobile/android/.gradle/
+/mobile/android/local.properties
+/mobile/android/app/debug.keystore
+/mobile/android/**/gradle-wrapper.jar
+/mobile/ios/Flutter/Flutter.podspec
+/mobile/ios/Pods/
+/mobile/ios/.symlinks/
+/mobile/**/*.g.dart
+/mobile/**/*.freezed.dart
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
